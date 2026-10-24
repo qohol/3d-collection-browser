@@ -17,6 +17,17 @@
 
 ## 使い方
 
+### 0. GitHub Pages で公開する(おすすめ)
+
+GitHub だけでホスティングでき、PC に Node.js / Python は不要です:
+
+- 公開 URL:**https://qoohl7.github.io/3d-collection-browser/**
+- **Settings → Pages → Source:「Deploy from a branch」→ Branch:`main` / `(root)`** を選んで保存するだけ
+- データセットの再同期は GitHub Actions が週次で自動実行します
+  (「Actions → Rebuild index」から手動実行も可能)
+
+※ リポジトリをプライベートのまま公開するには有料プランが必要です(パブリックなら無料)。
+
 ### 1. 最低 1 回だけ:インデックス生成
 
 ```bash
