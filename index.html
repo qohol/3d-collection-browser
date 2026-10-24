@@ -180,7 +180,128 @@
   .batchbar .progress { color: var(--text-dim); font-size: 12.5px; flex: 1 1 300px; word-break: break-all; }
   .batchbar .errclear { color: var(--danger); }
   #batchErrors { margin-top: 4px; }
+
+  /* ------------------------------------------------------------------ */
+  /* 3D ビューア (モーダル / フルスクリーン)                                    */
+  /* ------------------------------------------------------------------ */
+  #viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: none;
+    background: rgba(10, 12, 17, .94);
+  }
+  #viewer.show { display: block; }
+  #vCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .vhead {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 16px;
+    background: linear-gradient(rgba(12,14,20,.85), rgba(12,14,20,0));
+    pointer-events: none;
+  }
+  .vhead .vtitle { min-width: 0; flex: 1; }
+  .vhead .vname {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px;
+    word-break: break-all;
+  }
+  .vhead .vmeta { color: var(--text-dim); font-size: 12px; margin-top: 3px; word-break: break-all; }
+  .vhead .vclose { pointer-events: auto; }
+  .vhint {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20,24,32,.8);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  #vProgress {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    color: var(--text-dim);
+    font-size: 13px;
+    pointer-events: none;
+  }
+  #vProgress.show { display: flex; }
+  #vProgress .pbar {
+    width: min(320px, 60vw);
+    height: 6px;
+    background: var(--surface-2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  #vProgressFill {
+    width: 0%;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+    transition: width .15s;
+  }
+  #vError {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none;
+    max-width: min(520px, 80vw);
+    background: rgba(60, 18, 24, .9);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 16px 20px;
+    font-size: 13px;
+    pointer-events: auto;
+  }
+  #vError.show { display: block; }
+  /* 3D プレビュー可能なサムネイルのバッジ */
+  .badge-3d {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    background: rgba(91, 140, 255, .85);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0;
+  }
+  .thumbwrap.previewable .hint3d {
+    position: absolute;
+    inset: auto 0 0 0;
+    background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.65));
+    color: #fff;
+    font-size: 11px;
+    text-align: center;
+    padding: 18px 0 6px;
+    opacity: 0;
+    transition: opacity .15s;
+    pointer-events: none;
+  }
+  .thumbwrap.previewable:hover .hint3d { opacity: 1; }
 </style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
 <header>
@@ -210,6 +331,21 @@
   <div id="progressText" class="progress"></div>
 </div>
 <div class="batchbar" id="batchErrors"></div>
+
+<!-- 3D プレビュービューア -->
+<div id="viewer" aria-hidden="true" role="dialog">
+  <canvas id="vCanvas"></canvas>
+  <div class="vhead">
+    <div class="vtitle">
+      <div class="vname" id="vName"></div>
+      <div class="vmeta" id="vMeta"></div>
+    </div>
+    <button class="btn vclose" id="vClose">✕ 閉じる (Esc)</button>
+  </div>
+  <div class="vhint">🖱 ドラッグ: 回転 / 右・中ドラッグ: 移動 / ホイール: ズーム / ダブルクリック: 初期視点に戻す</div>
+  <div id="vProgress"><div class="pbar"><div id="vProgressFill"></div></div><div id="vProgressText">モデルを読み込み中…</div></div>
+  <div id="vError"></div>
+</div>
 
 <script src="data/index.js"></script>
 <script>
@@ -261,6 +397,7 @@ function prettyModel(m) {
   return out.join(" ").replace(/ → /g, "→");
 }
 const MODEL_LABEL = prettyModel;
+window.MODEL_LABEL = MODEL_LABEL; /* モジュールスクリプト側から参照できるように */
 
 /* ユニークな候補を構築 */
 const models  = [...new Set(DATA.map((d) => d.model).filter(Boolean))].sort();
@@ -331,6 +468,19 @@ function extraOutputs(d) {
   return d.outputs.filter((o) => o !== p && o.r !== "output");
 }
 
+/* ------------------------------------------------------------------ */
+/* 3D プレビュー (glb / gltf / ply) 判定                                     */
+/* ------------------------------------------------------------------ */
+const PREVIEW_EXT = new Set(["glb", "gltf", "ply"]);
+function previewOutput(d) {
+  /* role=output を優先し、プレビュー可能フォーマットの出力を探す */
+  const cands = d.outputs.filter((o) => o.f && PREVIEW_EXT.has(String(o.f).toLowerCase()));
+  return cands.find((o) => o.r === "output") || cands[0] || null;
+}
+function openViewer(d) {
+  window.dispatchEvent(new CustomEvent("viewer:open", { detail: d }));
+}
+
 function renderChunk() {
   const start = state.rendered;
   const end = Math.min(start + state.CHUNK, state.filtered.length);
@@ -366,6 +516,20 @@ function buildCard(d) {
   badge.className = "badge-fmt";
   badge.textContent = (d.format || "n/a").replace(", ", "/");
   thumb.appendChild(badge);
+
+  /* glb / gltf / ply なら 3D プレビュー可能バッジ + ホバー時のヒントを表示 */
+  const pv = previewOutput(d);
+  if (pv) {
+    const badge3d = document.createElement("span");
+    badge3d.className = "badge-3d";
+    badge3d.textContent = "👁 3D プレビュー";
+    thumb.appendChild(badge3d);
+    const hint = document.createElement("div");
+    hint.className = "hint3d";
+    hint.textContent = "クリックで 3D モデルをプレビュー";
+    thumb.appendChild(hint);
+    thumb.classList.add("previewable");
+  }
 
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -450,7 +614,11 @@ function buildCard(d) {
   meta.append(idline, modelline, licline, prompt, actions);
   card.append(thumb, meta);
   card.classList.toggle("checked", state.selected.has(d.id));
-  thumb.addEventListener("click", () => { cb.checked = !state.selected.has(d.id); cb.checked ? state.selected.add(d.id) : state.selected.delete(d.id); syncSelectionUI(); });
+  thumb.addEventListener("click", () => {
+    /* glb / gltf / ply は 3D プレビューを開き、それ以外は選択トグル */
+    if (pv) { openViewer(d); return; }
+    cb.checked = !state.selected.has(d.id); cb.checked ? state.selected.add(d.id) : state.selected.delete(d.id); syncSelectionUI();
+  });
   return card;
 }
 
@@ -615,6 +783,249 @@ function escapeHtml(s) {
 $("stat").textContent = `${DATA.length.toLocaleString()} 件 / モデル ${models.length} 種`;
 applyFilter();
 syncSelectionUI();
+</script>
+
+<script type="module">
+/* ------------------------------------------------------------------ */
+/* 3D ビューア (Three.js): glb / gltf / ply をモーダルで回転・移動・ズーム表示   */
+/* ------------------------------------------------------------------ */
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+const el = (id) => document.getElementById(id);
+const viewerEl = el("viewer"), canvas = el("vCanvas");
+const nameEl = el("vName"), metaEl = el("vMeta"), closeBtn = el("vClose");
+const progressEl = el("vProgress"), progressFill = el("vProgressFill"), progressText = el("vProgressText");
+const errorEl = el("vError");
+
+let renderer = null, scene = null, camera = null, controls = null;
+let envTexture = null, modelRoot = null, gridMesh = null;
+let currentLoadId = 0;      // 読み込み完了が古い順に来た場合の破棄判定用
+let rafId = 0;
+
+/* --- ローダー準備 (ドラコ圧縮 glb 対応) --- */
+const draco = new DRACOLoader();
+draco.setDecoderPath("https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/");
+const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(draco);
+const plyLoader = new PLYLoader();
+
+function ensureScene() {
+  if (renderer) return;
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x12141a);
+
+  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 5000);
+
+  /* PBR マテリアル用の環境光 (RoomEnvironment → PMREM) + 基本ライト */
+  envTexture = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTexture;
+  const dir = new THREE.DirectionalLight(0xffffff, 1.4);
+  dir.position.set(3, 6, 4);
+  scene.add(dir);
+  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x20232b, 0.6));
+
+  /* OrbitControls: 左ドラッグ=回転 / 右・中ドラッグ=移動 / ホイール=ズーム */
+  controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.addEventListener("change", () => renderOnce());
+
+  window.addEventListener("resize", onResize);
+}
+
+function onResize() {
+  if (!renderer) return;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderOnce();
+}
+
+function renderOnce() {
+  if (renderer && modelRoot) {
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      controls.update();
+      renderer.render(scene, camera);
+    });
+  }
+}
+
+/* --- モデルをカメラに収まるようにフィットさせる --- */
+let homeCamera = null;
+function fitCameraTo(root) {
+  const box = new THREE.Box3().setFromObject(root);
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const dist = maxDim * 1.9;
+
+  camera.near = maxDim / 1000;
+  camera.far = maxDim * 100;
+  camera.updateProjectionMatrix();
+
+  camera.position.set(center.x + dist * 0.8, center.y + dist * 0.55, center.z + dist * 0.9);
+  controls.target.copy(center);
+  controls.maxDistance = maxDim * 20;
+  controls.minDistance = maxDim / 200;
+  controls.update();
+
+  homeCamera = { pos: camera.position.clone(), target: center.clone() };
+
+  /* 地面グリッドをバウンディングに合わせて配置 */
+  if (gridMesh) { scene.remove(gridMesh); gridMesh.geometry.dispose(); gridMesh.material.dispose(); }
+  const span = maxDim * 4;
+  gridMesh = new THREE.GridHelper(span, Math.ceil(span * 2) || 20, 0x323947, 0x232833);
+  gridMesh.position.set(center.x, box.min.y, center.z);
+  scene.add(gridMesh);
+}
+
+/* --- ロード済みモデルの後始末 --- */
+function disposeModel() {
+  if (!modelRoot) return;
+  homeCamera = null;
+  scene.remove(modelRoot);
+  modelRoot.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) {
+      for (const v of Object.values(o.material)) {
+        if (v && v.isTexture) v.dispose();
+      }
+      o.material.dispose();
+    }
+  });
+  modelRoot = null;
+}
+
+/* --- プログレス / エラー表示 --- */
+function setLoading(on, msg) {
+  progressEl.classList.toggle("show", on);
+  if (msg) progressText.textContent = msg;
+}
+function showError(msg) {
+  errorEl.textContent = msg;
+  errorEl.classList.add("show");
+  setTimeout(() => errorEl.classList.remove("show"), 7000);
+}
+function onProgress(xhr) {
+  if (xhr.total > 0) {
+    const pct = Math.round((xhr.loaded / xhr.total) * 100);
+    progressFill.style.width = pct + "%";
+    progressText.textContent = `受信中… ${pct}% (${(xhr.loaded / 1024 / 1024).toFixed(1)} MB)`;
+  } else {
+    progressText.textContent = `受信中… ${(xhr.loaded / 1024 / 1024).toFixed(1)} MB`;
+  }
+}
+
+/* --- モデル読み込み --- */
+async function loadModel(d) {
+  const out = (d.outputs || []).find((o) => o.f && ["glb", "gltf", "ply"].includes(String(o.f).toLowerCase()));
+  if (!out) throw new Error("プレビュー可能な出力ファイルがありません");
+  const url = RESOLVE + out.p; // HF の相対パス → resolve URL (CORS 許可済み)
+
+  const loadId = ++currentLoadId;
+  setLoading(true, "モデルを読み込み中…");
+
+  if (modelRoot) disposeModel();
+  if (gridMesh) { scene.remove(gridMesh); gridMesh = null; }
+
+  try {
+    let root;
+    const ext = String(out.f).toLowerCase();
+    if (ext === "ply") {
+      const geo = await plyLoader.loadAsync(url, onProgress);
+      if (loadId !== currentLoadId) return;
+      /* 面データがあるならメッシュ、無ければポイントクラウドとして表示 */
+      geo.computeBoundingSphere();
+      if (geo.index && geo.index.count > 0) {
+        geo.computeVertexNormals();
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0xd8dce6, roughness: 0.65, metalness: 0.05,
+          vertexColors: geo.hasAttribute("color"),
+        });
+        root = new THREE.Mesh(geo, mat);
+      } else {
+        const radius = (geo.boundingSphere && geo.boundingSphere.radius) || 1;
+        root = new THREE.Points(geo, new THREE.PointsMaterial({ size: radius / 300, vertexColors: geo.hasAttribute("color"), color: 0xd8dce6 }));
+      }
+    } else {
+      const gltf = await gltfLoader.loadAsync(url, onProgress);
+      if (loadId !== currentLoadId) return;
+      /* KHR_materials_variants 等の標準処理は loader 内で完了している */
+      root = gltf.scene;
+      root.traverse((o) => {
+        if (o.isMesh) {
+          o.frustumCulled = false;
+          o.castShadow = o.receiveShadow = false;
+        }
+      });
+    }
+
+    if (!root) throw new Error("読み込み結果が空でした");
+
+    scene.add(root);
+    modelRoot = root;
+    fitCameraTo(root);
+    setLoading(false);
+    renderOnce();
+  } catch (err) {
+    if (loadId !== currentLoadId) return; // 既に別のモデルを開いている
+    setLoading(false);
+    showError(`モデルの読み込みに失敗しました: ${d.id}\n${err && err.message ? err.message : err}\n(ネットワーク接続や CDN アクセスを確認してください)`);
+  }
+}
+
+/* --- ビューアを開く / 閉じる --- */
+window.addEventListener("viewer:open", (ev) => {
+  const d = ev.detail;
+  ensureScene();
+  viewerEl.classList.add("show");
+  viewerEl.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden"; // 背景スクロール防止
+  errorEl.classList.remove("show");
+
+  nameEl.textContent = d.id || "";
+  const modelLabel = (window.MODEL_LABEL && window.MODEL_LABEL(d.model)) || d.model || "";
+  metaEl.textContent = [
+    modelLabel,
+    d.workflow || "",
+    d.license ? d.license.toUpperCase() : "",
+    d.prompt ? `prompt: ${d.prompt}` : "",
+  ].filter(Boolean).join(" ・ ");
+  onResize();
+  loadModel(d).catch((e) => showError(String(e.message || e)));
+});
+
+function closeViewer() {
+  if (!viewerEl.classList.contains("show")) return;
+  currentLoadId++;               // 進行中の読み込みを無効化
+  viewerEl.classList.remove("show");
+  viewerEl.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  cancelAnimationFrame(rafId);
+}
+closeBtn.addEventListener("click", closeViewer);
+window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeViewer(); });
+
+/* ダブルクリックで初期視点に戻す */
+canvas.addEventListener("dblclick", () => {
+  if (homeCamera) {
+    camera.position.copy(homeCamera.pos);
+    controls.target.copy(homeCamera.target);
+    controls.update();
+    renderOnce();
+  }
+});
 </script>
 </body>
 </html>

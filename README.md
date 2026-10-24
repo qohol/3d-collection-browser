@@ -5,6 +5,28 @@
 - サーバー・ビルド不要。`index.html` をブラウザで開くだけで動作します
 - データの取得もすべてブラウザ側で完結(外部にデータを送信しません)
 
+## 公開(GitHub Pages)
+
+このサイトは完全に静的なので、GitHub Pages で無料公開できます。
+
+1. GitHub 上でリポジトリを作成(owner/<名前>の Public リポジトリ)
+2. ここをリモートに登録してプッシュ:
+
+   ```bash
+   git remote add origin https://github.com/<あなたのユーザー名>/<リポジトリ名>.git
+   git push -u origin main
+   ```
+
+3. GitHub 上で設定を有効化
+   - **Settings → Pages → Source:「Deploy from a branch」→ Branch:`main` / `/(root)`** → Save
+   - 1〜2 分待つと `https://<ユーザー名>.github.io/<リポジトリ名>/` で公開されます
+
+補足:
+
+- 公開に必要なのは `index.html` と `data/index.js`(と README)だけ。`3d_data/`(ローカルの blend)は `.gitignore` で除外済み
+- アセット(モデル・サムネイル)はすべて各利用者のブラウザから Hugging Face CDN に直接取得されるため、ホスティングには重量データを置かない
+- データセット更新時は手元で `node build_index.mjs` を再実行 → `data/index.js` をコミットして push すれば反映される
+
 ---
 
 ## ファイル構成
@@ -14,22 +36,8 @@
 | `index.html` | ギャラリーサイト本体(単一ファイル・vanilla JS・依存ライブラリなし) |
 | `build_index.mjs` | メタデータ生成スクリプト(Node.js 18+・依存パッケージなし) |
 | `data/index.js` | 生成物:全レコードのメタデータの静的インデックス |
-| `run_index.sh` | ローカルでインデックスを再生成するスクリプト(`node build_index.mjs` のラッパー)— 現状は動作用コメントのみ |
-| `run_serve.sh` | ローカル静的サーバーを起動するスクリプト(`python3 -m http.server 8765`) |
-| `.github/workflows/rebuild.yml` | GitHub 上でインデックスを再生成するワークフロー(**手動実行のみ・定期実行なし**) |
 
 ## 使い方
-
-### 0. GitHub Pages で公開する(おすすめ)
-
-GitHub だけでホスティングでき、PC に Node.js / Python は不要です:
-
-- 公開 URL:**https://qoohl7.github.io/3d-collection-browser/**
-- **Settings → Pages → Source:「Deploy from a branch」→ Branch:`main` / `(root)`** を選んで保存するだけ
-- データセットの再同期は自動実行しません。更新が必要な場合は
-  「Actions → Rebuild index」から手動で実行してください
-
-※ リポジトリをプライベートのまま公開するには有料プランが必要です(パブリックなら無料)。
 
 ### 1. 最低 1 回だけ:インデックス生成
 
@@ -41,7 +49,6 @@ node build_index.mjs
 - レート制限 (429/5xx) には指数バックオフで自動リトライします
 - 結果は `data/index.js` に `window.DATA = [...]` 形式で出力されます
 - データセットが更新されたら、このコマンドを再実行するだけで再同期できます
-  (GitHub 上に公開している場合は「Actions → Rebuild index → Run workflow」でも実行可能)
 
 ### 2. ブラウザで開く
 
@@ -74,6 +81,17 @@ xdg-open index.html
   - モデル(52 種:Meshy / Tripo / TRELLIS / Rodin / Direct3D / SAM-3D / SPARC3D など)、workflow(image-to-3d / image-to-splat)、フォーマット(glb / spz / fbx / ply / vox / blend)のドロップダウン
   - プロンプト・asset ID のキーワード検索
   - 「表示中を全選択」「選択解除」「フィルタ解除」
+
+### 3D プレビュー (glb / gltf / ply)
+
+- **サムネイルクリックで 3D モデルをその場でプレビュー**
+  - 出力に `glb` / `gltf` / `ply` を持つレコード(1,300 件以上)は、サムネイルに「👁 3D プレビュー」バッジが表示され、クリックするとフルスクリーンの 3D ビューアでモデルを開ける
+  - 操作: **ドラッグ=回転 / 右・中ドラッグ=移動(パン) / ホイール=ズーム / ダブルクリック=初期視点に戻す**、`Esc` または「✕ 閉じる」で終了
+  - モデルはバウンディングボックスに合わせてカメラ自動フィット + 地面グリッド表示
+  - PBR マテリアル対応(RoomEnvironment による環境光 + トーンマッピング)、**DRACO 圧縮 glb** にも対応
+  - 読み込みは進捗バーで表示、失敗時はエラー内容を表示
+  - `ply` はメッシュなら面表示、面データのないポイントクラウドなら点群表示
+- 対応外のフォーマット (`spz` / `fbx` / `vox` / `blend`) はブラウザで直接描画できないため、サムネイルクリックは従来どおりの選択トグル動作になります
 
 ### ダウンロード
 
