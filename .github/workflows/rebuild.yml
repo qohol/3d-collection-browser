@@ -1,17 +1,15 @@
-# Hugging Face データセットの更新を週次で取り込み、data/index.js を自動再生成する
-# 手動実行も可能 (Actions タブ → Rebuild index → Run workflow)
+# Hugging Face データセットの更新を取り込み、data/index.js を再生成する
+# 自動実行はしないため、必要に応じて手動で実行する
+# (Actions タブ → Rebuild index → Run workflow)
 name: Rebuild index
 
 on:
-  schedule:
-    # 毎週月曜 07:00 UTC (JST 月曜 16:00)
-    - cron: "0 7 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: write
 
-# 同時実行を防止 (cron と手動実行が重なった場合に古い方をキャンセル)
+# 同時実行を防止 (手動実行が重なった場合に古い方をキャンセル)
 concurrency:
   group: rebuild-index
   cancel-in-progress: true

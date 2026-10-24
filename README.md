@@ -14,6 +14,9 @@
 | `index.html` | ギャラリーサイト本体(単一ファイル・vanilla JS・依存ライブラリなし) |
 | `build_index.mjs` | メタデータ生成スクリプト(Node.js 18+・依存パッケージなし) |
 | `data/index.js` | 生成物:全レコードのメタデータの静的インデックス |
+| `run_index.sh` | ローカルでインデックスを再生成するスクリプト(`node build_index.mjs` のラッパー)— 現状は動作用コメントのみ |
+| `run_serve.sh` | ローカル静的サーバーを起動するスクリプト(`python3 -m http.server 8765`) |
+| `.github/workflows/rebuild.yml` | GitHub 上でインデックスを再生成するワークフロー(**手動実行のみ・定期実行なし**) |
 
 ## 使い方
 
@@ -23,8 +26,8 @@ GitHub だけでホスティングでき、PC に Node.js / Python は不要で�
 
 - 公開 URL:**https://qoohl7.github.io/3d-collection-browser/**
 - **Settings → Pages → Source:「Deploy from a branch」→ Branch:`main` / `(root)`** を選んで保存するだけ
-- データセットの再同期は GitHub Actions が週次で自動実行します
-  (「Actions → Rebuild index」から手動実行も可能)
+- データセットの再同期は自動実行しません。更新が必要な場合は
+  「Actions → Rebuild index」から手動で実行してください
 
 ※ リポジトリをプライベートのまま公開するには有料プランが必要です(パブリックなら無料)。
 
@@ -38,6 +41,7 @@ node build_index.mjs
 - レート制限 (429/5xx) には指数バックオフで自動リトライします
 - 結果は `data/index.js` に `window.DATA = [...]` 形式で出力されます
 - データセットが更新されたら、このコマンドを再実行するだけで再同期できます
+  (GitHub 上に公開している場合は「Actions → Rebuild index → Run workflow」でも実行可能)
 
 ### 2. ブラウザで開く
 
