@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Collection Browser — scenario-labs/3d-collection</title>
+<style>
+  :root {
+    --bg: #12141a;
+    --surface: #1c1f27;
+    --surface-2: #252a35;
+    --border: #323947;
+    --text: #e8ebf1;
+    --text-dim: #99a2b3;
+    --accent: #5b8cff;
+    --accent-hover: #7aa3ff;
+    --danger: #ff5b6e;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    font-size: 14px;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 18px;
+  }
+  header h1 { margin: 0 0 2px; font-size: 18px; }
+  header .sub { color: var(--text-dim); font-size: 12px; }
+  header .sub a { color: var(--accent); text-decoration: none; }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .toolbar input[type="search"], .toolbar select {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 7px 10px;
+    font-size: 13px;
+    outline: none;
+  }
+  .toolbar input[type="search"] { flex: 1 1 220px; min-width: 160px; }
+  .toolbar select { max-width: 240px; }
+  .btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--border); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+  main#grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 14px;
+    padding: 16px 18px 90px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color .15s, transform .15s;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card.checked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .thumbwrap {
+    position: relative;
+    aspect-ratio: 3 / 2;
+    background: var(--surface-2);
+    cursor: pointer;
+  }
+  .thumbwrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .thumbwrap .badge-fmt {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    background: rgba(0,0,0,.6);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+  .thumbwrap.wf-splat .badge-fmt { text-transform: none; }
+  .card .meta { padding: 9px 10px 10px; display: flex; flex-direction: column; gap: 5px; flex: 1; }
+  .card .idline {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 10.5px;
+    color: var(--text-dim);
+    word-break: break-all;
+  }
+  .card .modelline {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--accent-hover);
+    word-break: break-all;
+  }
+  .card .licline { display: flex; flex-wrap: wrap; gap: 5px; }
+  .card .chip {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 10.5px;
+    padding: 1px 8px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .card .chip.license { color: #8fd2a9; border-color: #34523e; }
+  .card .prompt {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 17px;
+  }
+  .card .actions { display: flex; align-items: center; gap: 7px; margin-top: auto; padding-top: 4px; }
+  .card .actions .btn { padding: 5px 10px; font-size: 12px; }
+  .card .actions .extra { font-size: 11.5px; color: var(--text-dim); }
+  .card .actions .extra a { color: var(--text-dim); }
+  .card select-row { font-size: 11px; }
+  .selrow { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); cursor: pointer; user-select: none; }
+  .selrow input { accent-color: var(--accent); cursor: pointer; }
+
+  #loadStatus {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 12px;
+    padding: 10px 0 20px;
+  }
+  .empty { text-align: center; color: var(--text-dim); padding: 60px 0; grid-column: 1 / -1; }
+
+  .batchbar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 20;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 12px 18px;
+    box-shadow: 0 -6px 24px rgba(0,0,0,.45);
+  }
+  .batchbar.show { display: flex; }
+  .batchbar .progress { color: var(--text-dim); font-size: 12.5px; flex: 1 1 300px; word-break: break-all; }
+  .batchbar .errclear { color: var(--danger); }
+  #batchErrors { margin-top: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧊 3D Collection Browser</h1>
+  <div class="sub">
+    <a href="https://huggingface.co/datasets/scenario-labs/3d-collection" target="_blank" rel="noopener">scenario-labs/3d-collection</a>
+    のモデルをサムネイルで確認してワンクリックでダウンロードできます (<span id="stat">…</span>)
+  </div>
+  <div class="toolbar">
+    <input type="search" id="fSearch" placeholder="キーワード検索 (プロンプト / asset ID)" autocomplete="off">
+    <select id="fModel"><option value="">モデル: すべて</option></select>
+    <select id="fWorkflow"><option value="">workflow: すべて</option></select>
+    <select id="fFormat"><option value="">フォーマット: すべて</option></select>
+    <button class="btn" id="btnClear">フィルタ解除</button>
+    <button class="btn" id="btnSelectShown">表示中を全選択</button>
+    <button class="btn" id="btnDeselect">選択解除</button>
+  </div>
+</header>
+
+<main id="grid"></main>
+<div id="loadStatus"></div>
+
+<div class="batchbar" id="batchBar">
+  <span id="selCount">選択: 0件</span>
+  <button class="btn primary" id="btnBatchDl">⬇ 選択を一括ダウンロード</button>
+  <button class="btn danger" id="btnBatchCancel" disabled>中断</button>
+  <div id="progressText" class="progress"></div>
+</div>
+<div class="batchbar" id="batchErrors"></div>
+
+<script src="data/index.js"></script>
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ */
+/* 基本データ                                                             */
+/* ------------------------------------------------------------------ */
+const DATA = window.DATA || [];
+const RESOLVE = "https://huggingface.co/datasets/scenario-labs/3d-collection/resolve/main/";
+
+/* フォーマット列は "blend, glb" のような複数値があるため分解して候補を作る */
+function formatTokens(f) {
+  return (f || "").split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/* ------------------------------------------------------------------ */
+/* 生成モデル名の表示整形 (Meshy / TRELLIS / Tripo / Rodin など)                 */
+/* ------------------------------------------------------------------ */
+const cap = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+const MODEL_TOKENS = {
+  meshy: "Meshy", trellis: "TRELLIS", tripo: "Tripo", rodin: "Rodin",
+  direct3d: "Direct3D", sparc3d: "SPARC3D", worldlabs: "World Labs",
+  marble: "Marble", meta: "Meta", sam: "SAM", objects: "Objects", body: "Body",
+  hyper3d: "Hyper3D", highpack: "HighPack", hitem: "Hitem", csm: "CSM",
+  vast: "VAST", ai: "AI", triposplat: "TripoSplat", yvo3d: "YVO3D",
+  pixal3d: "Pixal3D", partcrafter: "PartCrafter", scenario: "Scenario",
+  claude: "Claude", gpt: "GPT", gpt6: "GPT-6", opus: "Opus", astra: "Astra",
+  reconviagen: "ReconViaGen", voxels: "Voxels", img23d: "Image→3D",
+  txt23d: "Text→3D", multiview: "Multiview", to: "→", "3d": "3D",
+  portrait: "Portrait", plus: "Plus", smart: "Smart", topology: "Topology",
+  draft: "Draft", fast: "Fast", p1: "P1", p2: "P2", image: "Image",
+  sparc: "SPARC", v2: "v2", v3: "v3",
+};
+function prettyModel(m) {
+  if (!m) return "(不明)";
+  const toks = m.replace(/^model_/, "").split("-");
+  const out = [];
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i], n = toks[i + 1] ?? "";
+    /* "v3" + "0" → "v3.0"、"7" + "1" → "7.1" のように連続バージョン番号を結合 */
+    if ((/^v\d+$/.test(t) || /^\d+$/.test(t)) && /^\d+$/.test(n)) {
+      out.push(t + "." + n);
+      i++;
+      continue;
+    }
+    out.push(MODEL_TOKENS[t] ?? (/^\d+$/.test(t) ? t : cap(t)));
+  }
+  return out.join(" ").replace(/ → /g, "→");
+}
+const MODEL_LABEL = prettyModel;
+
+/* ユニークな候補を構築 */
+const models  = [...new Set(DATA.map((d) => d.model).filter(Boolean))].sort();
+const workflows = [...new Set(DATA.map((d) => d.workflow).filter(Boolean))].sort();
+const formats = [...new Set(DATA.flatMap((d) => formatTokens(d.format)))].sort();
+
+/* ------------------------------------------------------------------ */
+/* フィルタ UI                                                              */
+/* ------------------------------------------------------------------ */
+const $ = (id) => document.getElementById(id);
+const fSearch = $("fSearch"), fModel = $("fModel"), fWorkflow = $("fWorkflow"), fFormat = $("fFormat");
+for (const m of models) {
+  const o = document.createElement("option");
+  o.value = m; o.textContent = `${MODEL_LABEL(m)} (${DATA.filter((d) => d.model === m).length})`;
+  fModel.appendChild(o);
+}
+for (const w of workflows) {
+  const o = document.createElement("option");
+  o.value = w; o.textContent = w;
+  fWorkflow.appendChild(o);
+}
+for (const f of formats) {
+  const o = document.createElement("option");
+  o.value = f; o.textContent = f;
+  fFormat.appendChild(o);
+}
+
+const state = {
+  selected: new Set(),          // asset id
+  filtered: [],                 // フィルタ後の全件 (レンダリングせず ID 管理のみ)
+  rendered: 0,                  // ここまで DOM に追加済み
+  CHUNK: 120,                   // 一度にレンダリングする枚数
+  abort: null,                  // 一括ダウンロード中断用
+};
+
+function applyFilter() {
+  const q = fSearch.value.trim().toLowerCase();
+  const m = fModel.value, w = fWorkflow.value, f = fFormat.value;
+  const formatOk = (d) => !f || formatTokens(d.format).includes(f);
+  const searchOk = (d) =>
+    !q ||
+    (d.id || "").toLowerCase().includes(q) ||
+    (d.prompt || "").toLowerCase().includes(q);
+  state.filtered = DATA.filter((d) => (!m || d.model === m) && (!w || d.workflow === w) && formatOk(d) && searchOk(d));
+  state.rendered = 0;
+  grid.innerHTML = "";
+  renderChunk();
+}
+
+/* ------------------------------------------------------------------ */
+/* グリッド描画 (チャンクレンダリング + 遅延読み込み)                              */
+/* ------------------------------------------------------------------ */
+const grid = $("grid");
+const loadStatus = $("loadStatus");
+
+function thumbSrc(d) {
+  /* 事前生成された preview URL (署名不要) を使う。無ければフォーマットなし扱い */
+  return d.preview;
+}
+
+function primaryOutput(d) {
+  /* role=output を優先し、無ければ先頭の出力を使う */
+  return d.outputs.find((o) => o.r === "output") || d.outputs[0] || null;
+}
+
+function extraOutputs(d) {
+  const p = primaryOutput(d);
+  return d.outputs.filter((o) => o !== p && o.r !== "output");
+}
+
+function renderChunk() {
+  const start = state.rendered;
+  const end = Math.min(start + state.CHUNK, state.filtered.length);
+  const frag = document.createDocumentFragment();
+  for (let i = start; i < end; i++) frag.appendChild(buildCard(state.filtered[i]));
+  grid.appendChild(frag);
+  state.rendered = end;
+  loadStatus.textContent =
+    end < state.filtered.length
+      ? `${end.toLocaleString()} / ${state.filtered.length.toLocaleString()} 件表示 (下にスクロールで続きを読み込み)`
+      : state.filtered.length > 0
+        ? `${state.filtered.length.toLocaleString()} 件のすべてを表示`
+        : "";
+}
+
+function buildCard(d) {
+  const out = primaryOutput(d);
+  const card = document.createElement("div");
+  card.className = "card";
+  card.dataset.id = d.id;
+
+  const thumb = document.createElement("div");
+  thumb.className = "thumbwrap";
+  const img = document.createElement("img");
+  img.loading = "lazy";
+  img.decoding = "async";
+  img.alt = d.id;
+  if (thumbSrc(d)) img.src = thumbSrc(d);
+  else img.style.opacity = "0.15";
+  img.addEventListener("error", () => { img.src = ""; img.style.visibility = "hidden"; });
+  thumb.appendChild(img);
+  const badge = document.createElement("span");
+  badge.className = "badge-fmt";
+  badge.textContent = (d.format || "n/a").replace(", ", "/");
+  thumb.appendChild(badge);
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+
+  const idline = document.createElement("div");
+  idline.className = "idline";
+  idline.textContent = d.id;
+
+  const modelline = document.createElement("div");
+  modelline.className = "modelline";
+  modelline.textContent = MODEL_LABEL(d.model);
+  modelline.title = d.model || ""; /* 元の slug もツールチップで参照可能 */
+
+  /* ライセンス + workflow バッジ */
+  const licline = document.createElement("div");
+  licline.className = "licline";
+  if (d.license) {
+    const lic = document.createElement("span");
+    lic.className = "chip license";
+    lic.textContent = d.license.toUpperCase();
+    lic.title = "データセットで宣言されているライセンス (CC-BY-4.0: 出典表示を条件に利用・配布可)";
+    licline.appendChild(lic);
+  }
+  if (d.workflow) {
+    const wf = document.createElement("span");
+    wf.className = "chip";
+    wf.textContent = d.workflow;
+    licline.appendChild(wf);
+  }
+
+  const prompt = document.createElement("div");
+  prompt.className = "prompt";
+  prompt.textContent = d.prompt || "";
+  prompt.title = d.prompt || "";
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+
+  const dl = document.createElement("button");
+  dl.className = "btn primary";
+  dl.textContent = "⬇ ダウンロード";
+  if (!out) { dl.disabled = true; dl.title = "このレコードには出力ファイルがありません"; }
+  dl.addEventListener("click", async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dl.disabled = true;
+    try {
+      await downloadOne([d], (msg) => { dl.textContent = msg; });
+    } catch (err) {
+      alert(`ダウンロード失敗: ${d.id}\n${err && err.message ? err.message : err}`);
+    } finally {
+      dl.disabled = false;
+      dl.textContent = "⬇ ダウンロード";
+    }
+  });
+  actions.appendChild(dl);
+
+  const extras = extraOutputs(d);
+  if (out && extras.length) {
+    const span = document.createElement("span");
+    span.className = "extra";
+    const links = extras.map((o) => {
+      const a = document.createElement("a");
+      a.href = RESOLVE + o.p + "?download=true";
+      a.textContent = `.${(o.p.split(".").pop() || "").toLowerCase()}も`;
+      return a;
+    });
+    span.append(...links);
+    actions.appendChild(span);
+  }
+
+  /* 選択チェックボックス */
+  const sel = document.createElement("label");
+  sel.className = "selrow selrow-slot";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = state.selected.has(d.id);
+  cb.addEventListener("change", () => { cb.checked ? state.selected.add(d.id) : state.selected.delete(d.id); syncSelectionUI(); });
+  sel.append(cb);
+  sel.append("選択");
+  actions.prepend(sel);
+
+  meta.append(idline, modelline, licline, prompt, actions);
+  card.append(thumb, meta);
+  card.classList.toggle("checked", state.selected.has(d.id));
+  thumb.addEventListener("click", () => { cb.checked = !state.selected.has(d.id); cb.checked ? state.selected.add(d.id) : state.selected.delete(d.id); syncSelectionUI(); });
+  return card;
+}
+
+/* スクロール末尾で続きをチャンク描画 */
+let scrollScheduled = false;
+window.addEventListener("scroll", () => {
+  if (scrollScheduled) return;
+  scrollScheduled = true;
+  requestAnimationFrame(() => {
+    scrollScheduled = false;
+    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 600) {
+      if (state.rendered < state.filtered.length) renderChunk();
+    }
+  });
+}, { passive: true });
+
+/* ------------------------------------------------------------------ */
+/* ダウンロード処理                                                          */
+/* ------------------------------------------------------------------ */
+/**
+ * 1 アセット分の出力 (role=output) を fetch→blob で保存し、
+ * 好ましいファイル名 (asset_id.ext) を付ける。
+ * CORS 失敗時は ?download=true 付きの直接リンクへフォールバック。
+ */
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+async function fetchWithProgress(url, signal, onMB) {
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.body) return await res.blob();
+  const reader = res.body.getReader();
+  const chunks = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (onMB) onMB((received / 1024 / 1024).toFixed(1));
+  }
+  return new Blob(chunks, { type: res.headers.get("content-type") || "application/octet-stream" });
+}
+
+async function downloadOne(items, onProgress, signal) {
+  for (const d of items) {
+    const out = primaryOutput(d);
+    if (!out) continue;
+    const url = RESOLVE + out.p + "?download=true";
+    const ext = (out.p.split(".").pop() || "bin").toLowerCase();
+    const name = `${d.id}.${ext}`;
+    let blob = null;
+    try {
+      blob = await fetchWithProgress(url, signal, (mb) => onProgress && onProgress(d, name, `${mb} MB 受信中…`));
+    } catch (err) {
+      if (err && err.name === "AbortError") throw err;
+      /* CORS やネットワークの問題 → ブラウザ既定挙動での保存にフォールバック */
+      onProgress && onProgress(d, name, "(直接リンク保存へフォールバック)");
+      const a = document.createElement("a");
+      a.href = url;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      await new Promise((r) => setTimeout(r, 1200)); // 短く待機して連続発火を緩和
+      continue;
+    }
+    saveBlob(blob, name);
+    onProgress && onProgress(d, name, `${(blob.size / 1024 / 1024).toFixed(1)} MB 保存 ✓`);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* バッチ (一括) ダウンロード                                                 */
+/* ------------------------------------------------------------------ */
+const batchBar = $("batchBar"), batchErrBar = $("batchErrors");
+const selCountEl = $("selCount"), btnBatchDl = $("btnBatchDl"), btnBatchCancel = $("btnBatchCancel");
+const progressText = $("progressText");
+let running = false;
+
+function syncSelectionUI() {
+  selCountEl.textContent = `選択: ${state.selected.size.toLocaleString()}件`;
+  btnBatchDl.disabled = state.selected.size === 0 || running;
+  document.querySelectorAll(".card").forEach((c) => c.classList.toggle("checked", state.selected.has(c.dataset.id)));
+}
+
+btnBatchDl.addEventListener("click", async () => {
+  const items = DATA.filter((d) => state.selected.has(d.id));
+  if (items.length === 0) return;
+  running = true;
+  btnBatchDl.disabled = true;
+  btnBatchCancel.disabled = false;
+  batchErrBar.innerHTML = "";
+  const abort = new AbortController();
+  state.abort = abort;
+  let ok = 0, fail = 0;
+  try {
+    for (const [i, d] of items.entries()) {
+      if (abort.signal.aborted) break;
+      try {
+        await downloadOne([d], (_d, name, msg) => {
+          progressText.textContent = `${i + 1} / ${items.length}: ${name} — ${msg}`;
+        }, abort.signal);
+        ok++;
+      } catch (err) {
+        if (err && err.name === "AbortError") { progressText.textContent = "⛔ 中断されました"; break; }
+        fail++;
+        progressText.innerHTML = `<span class="errclear">${i + 1} / ${items.length}: ${escapeHtml(d.id)} — エラー (${escapeHtml(String(err.message || err))})</span>`;
+        /* 中断でなければ続行 */
+      }
+    }
+    if (!abort.signal.aborted) {
+      progressText.textContent = fail === 0
+        ? `完了: ${ok}件すべて成功 ✓`
+        : `完了: 成功 ${ok}件 / 失敗 ${fail}件 (中断またはネットワーク問題があった項目は再選択してお試しください)`;
+    }
+  } catch (err) {
+    progressText.innerHTML = `<span class="errclear">エラー: ${escapeHtml(String(err.message || err))}</span>`;
+  } finally {
+    running = false;
+    btnBatchDl.disabled = state.selected.size === 0;
+    btnBatchCancel.disabled = true;
+  }
+});
+
+btnBatchCancel.addEventListener("click", () => { if (state.abort) state.abort.abort(); });
+
+/* ------------------------------------------------------------------ */
+/* その他の UI イベント                                                        */
+/* ------------------------------------------------------------------ */
+$("btnClear").addEventListener("click", () => {
+  fSearch.value = ""; fModel.value = ""; fWorkflow.value = ""; fFormat.value = "";
+  applyFilter();
+});
+["input", "change"].forEach((ev) => {
+  fSearch.addEventListener(ev, applyFilter);
+  fModel.addEventListener(ev, applyFilter);
+  fWorkflow.addEventListener(ev, applyFilter);
+  fFormat.addEventListener(ev, applyFilter);
+});
+$("btnSelectShown").addEventListener("click", () => {
+  for (const d of state.filtered) state.selected.add(d.id);
+  syncSelectionUI();
+});
+$("btnDeselect").addEventListener("click", () => {
+  state.selected.clear();
+  syncSelectionUI();
+});
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* 初期化 */
+$("stat").textContent = `${DATA.length.toLocaleString()} 件 / モデル ${models.length} 種`;
+applyFilter();
+syncSelectionUI();
+</script>
+</body>
+</html>

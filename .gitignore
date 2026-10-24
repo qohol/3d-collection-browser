@@ -1,0 +1,12 @@
+# サイト動作に不要なローカルデータ (blend 12MB) は公開対象から除外
+3d_data/
+
+# OS / エディタ由来のゴミ
+-l
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# node 関連 (build_index.mjs は依存パッケージなしで動作するため基本不要だが念のため)
+node_modules/
