@@ -1,138 +1,152 @@
 # 🧊 3D Collection Browser
 
-[Hugging Face データセット **scenario-labs/3d-collection**](https://huggingface.co/datasets/scenario-labs/3d-collection)(全 1,342 件の 3D アセット)を、サムネイル付きで確認しながらワンクリックでダウンロードできるローカル Web サイトです。
+[English](README.md) | [日本語 (Japanese)](README_ja.md)
 
-- サーバー・ビルド不要。`index.html` をブラウザで開くだけで動作します
-- データの取得もすべてブラウザ側で完結(外部にデータを送信しません)
+A local web viewer for the [Hugging Face dataset **scenario-labs/3d-collection**](https://huggingface.co/datasets/scenario-labs/3d-collection) (1,342 3D assets), letting you browse assets with thumbnails and download them with one click.
 
-## 公開(GitHub Pages)
+- No server or build step required — just open `index.html` in a browser and it works
+- All data fetching happens entirely in the browser (no data is sent externally)
 
-このサイトは完全に静的なので、GitHub Pages で無料公開できます。
+## Publishing (GitHub Pages)
 
-1. GitHub 上でリポジトリを作成(owner/<名前>の Public リポジトリ)
-2. ここをリモートに登録してプッシュ:
+Since the site is fully static, you can publish it for free with GitHub Pages.
+
+1. Create a repository on GitHub (a public repository under `owner/<name>`)
+2. Register it as a remote and push:
 
    ```bash
-   git remote add origin https://github.com/<あなたのユーザー名>/<リポジトリ名>.git
+   git remote add origin https://github.com/<your-username>/<repo-name>.git
    git push -u origin main
    ```
 
-3. GitHub 上で設定を有効化
-   - **Settings → Pages → Source:「Deploy from a branch」→ Branch:`main` / `/(root)`** → Save
-   - 1〜2 分待つと `https://<ユーザー名>.github.io/<リポジトリ名>/` で公開されます
+3. Enable Pages in the GitHub settings:
+   - **Settings → Pages → Source: "Deploy from a branch" → Branch: `main` / `/(root)`** → Save
+   - After 1–2 minutes the site will be live at `https://<username>.github.io/<repo-name>/`
 
-補足:
+Notes:
 
-- 公開に必要なのは `index.html` と `data/index.js`(と README)だけ。`3d_data/`(ローカルの blend)は `.gitignore` で除外済み
-- アセット(モデル・サムネイル)はすべて各利用者のブラウザから Hugging Face CDN に直接取得されるため、ホスティングには重量データを置かない
-- データセット更新時は手元で `node build_index.mjs` を再実行 → `data/index.js` をコミットして push すれば反映される
+- Only `index.html` and `data/index.js` (plus the README) are needed for publishing. `3d_data/` (local blend files) is already excluded by `.gitignore`
+- Assets (models / thumbnails) are fetched directly from the Hugging Face CDN by each user's browser, so no heavy data is hosted
+- When the dataset updates, run `node build_index.mjs` locally again → commit the updated `data/index.js` and push to reflect the changes
 
 ---
 
-## ファイル構成
+## File structure
 
-| ファイル | 内容 |
+| File | Description |
 |---|---|
-| `index.html` | ギャラリーサイト本体(単一ファイル・vanilla JS・依存ライブラリなし) |
-| `build_index.mjs` | メタデータ生成スクリプト(Node.js 18+・依存パッケージなし) |
-| `data/index.js` | 生成物:全レコードのメタデータの静的インデックス |
+| `index.html` | The gallery site itself (single file, vanilla JS, no dependencies) |
+| `build_index.mjs` | Metadata generation script (Node.js 18+, no packages) |
+| `data/index.js` | Generated: a static index of metadata for all records |
 
-## 使い方
+## Usage
 
-### 1. 最低 1 回だけ:インデックス生成
+### 1. One-time only: generate the index
 
 ```bash
 node build_index.mjs
 ```
 
-- HF 公式の datasets-server rows API から全 1,342 件をページング取得します(約 1 分)
-- レート制限 (429/5xx) には指数バックオフで自動リトライします
-- 結果は `data/index.js` に `window.DATA = [...]` 形式で出力されます
-- データセットが更新されたら、このコマンドを再実行するだけで再同期できます
+- Fetches all 1,342 records with paging from the official HF datasets-server rows API (approx. 1 minute)
+- Automatically retries rate limits (429/5xx) with exponential backoff
+- Output is written to `data/index.js` in the `window.DATA = [...]` format
+- If the dataset updates, simply re-run this command to re-sync
 
-### 2. ブラウザで開く
+### 2. Open in a browser
 
 ```bash
-# パターン A: ローカル静的サーバーで起動 (サイトのフォルダ内で実行)
+# Pattern A: start a local static server (run inside the site folder)
 python3 -m http.server 8765
-# → http://localhost:8765 を開く
+# → open http://localhost:8765
 
-# パターン B: そのまま開く(index.js が classic script なので file:// でも動作)
+# Pattern B: open the file directly (index.js is a classic script, so file:// works too)
 xdg-open index.html
 ```
 
-> **ヒント**:`OSError: [Errno 98] Address already in use` が出た場合は、
-> ポート 8765 が別のプロセスに使用されています。
-> - `ss -tlnp | grep 8765` で占有プロセスを特定して停止する
-> - または別のポート (例: `python3 -m http.server 9000`) を使う
-> - なお `python3 -m http.server` (ポート指定なし) は既定の 8000 番で起動するため、
->   その場合は **http://localhost:8000** を開いてください
+> **Tip**: If you see `OSError: [Errno 98] Address already in use`,
+> port 8765 is already in use by another process.
+> - Identify the process with `ss -tlnp | grep 8765` and stop it
+> - Or use another port (e.g. `python3 -m http.server 9000`)
+> - Note that `python3 -m http.server` (without a port) defaults to port 8000,
+>   in which case open **http://localhost:8000**
 
 ---
 
-## 機能
+## Features
 
-### ギャラリー
+### Gallery
 
-- **サムネイル付きカードグリッド**
-  - 画像は遅延読み込み + 120 件ずつのチャンク描画(下にスクロールすると続きを読み込み)
-  - カードには `asset_id`、生成モデル名、プロンプト、フォーマットバッジを表示
-- **フィルター**
-  - モデル(52 種:Meshy / Tripo / TRELLIS / Rodin / Direct3D / SAM-3D / SPARC3D など)、workflow(image-to-3d / image-to-splat)、フォーマット(glb / spz / fbx / ply / vox / blend)のドロップダウン
-  - プロンプト・asset ID のキーワード検索
-  - 「表示中を全選択」「選択解除」「フィルタ解除」
+- **Card grid with thumbnails**
+  - Images are lazy-loaded and drawn in chunks of 120 (scroll down to load more)
+  - Cards display `asset_id`, the generation model name, the prompt, and a format badge
+- **Filters**
+  - Drop-downs for model (52 types: Meshy / Tripo / TRELLIS / Rodin / Direct3D / SAM-3D / SPARC3D, etc.), workflow (image-to-3d / image-to-splat), and format (glb / spz / fbx / ply / vox / blend)
+  - Keyword search over prompts and asset IDs
+  - "Select all shown", "Deselect all", and "Clear filters" buttons
 
-### 3D プレビュー (glb / gltf / ply)
+### 3D Preview (glb / gltf / ply)
 
-- **サムネイルクリックで 3D モデルをその場でプレビュー**
-  - 出力に `glb` / `gltf` / `ply` を持つレコード(1,300 件以上)は、サムネイルに「👁 3D プレビュー」バッジが表示され、クリックするとフルスクリーンの 3D ビューアでモデルを開ける
-  - 操作: **ドラッグ=回転 / 右・中ドラッグ=移動(パン) / ホイール=ズーム / ダブルクリック=初期視点に戻す**、`Esc` または「✕ 閉じる」で終了
-  - モデルはバウンディングボックスに合わせてカメラ自動フィット + 地面グリッド表示
-  - PBR マテリアル対応(RoomEnvironment による環境光 + トーンマッピング)、**DRACO 圧縮 glb** にも対応
-  - 読み込みは進捗バーで表示、失敗時はエラー内容を表示
-  - `ply` はメッシュなら面表示、面データのないポイントクラウドなら点群表示
-- 対応外のフォーマット (`spz` / `fbx` / `vox` / `blend`) はブラウザで直接描画できないため、サムネイルクリックは従来どおりの選択トグル動作になります
+- **Click a thumbnail to preview the 3D model in place**
+  - Records with `glb` / `gltf` / `ply` outputs (over 1,300) show a "👁 3D Preview" badge on the thumbnail; clicking opens the model in a full-screen 3D viewer
+  - Controls: **drag = rotate / right- or middle-drag = pan / wheel = zoom / double-click = reset to the initial view**, `Esc` or "✕ Close" to exit
+  - Models are auto-fitted to the camera based on the bounding box, with a ground grid displayed
+  - PBR materials supported (RoomEnvironment-based ambient lighting + tone mapping); **DRACO-compressed glb** files also supported
+  - Loading shows a progress bar; errors display the reason on failure
+  - `ply` files render as faces if the mesh has face data, or as a point cloud if not
+- For unsupported formats (`spz` / `fbx` / `vox` / `blend`), which can't be rendered directly in the browser, clicking a thumbnail keeps the previous select-toggle behavior
 
-### ダウンロード
+### Download
 
-- **個別 DL**:カードの「⬇ ダウンロード」ボタン
-  - `fetch → Blob` で取得し、`asset_<id>.glb` のような分かりやすいファイル名で保存(`?download=true` 付きの公式 resolve URL を使用)
-  - CORS 制限やネットワークエラーで取得できない場合は、ブラウザ既定挙動の直接リンク保存へ自動フォールバック
-- **一括 DL**:チェックボックスで選択して「⬇ 選択を一括ダウンロード」
-  - 1 件ずつ順次ダウンロードし、進捗(`3 / 10: asset_xxx.glb — 52.1 MB 送信中…`)を表示
-  - 「中断」ボタンで途中停止可能(`AbortController` 使用)
-- **複数出力ファイルへの対応**
-  - glb + native.blend のように複数出力を持つレコード(158 件)は、追加フォーマットのリンク(`.blend も`)をカードに表示
+- **Individual download**: the "⬇ Download" button on each card
+  - Fetches via `fetch → Blob` and saves with a friendly name like `asset_<id>.glb` (using the official resolve URL with `?download=true`)
+  - If fetching fails due to CORS restrictions or network errors, automatically falls back to the browser's default direct-link save behavior
+- **Batch download**: select records with checkboxes and click "⬇ Download selected"
+  - Downloads one at a time in sequence, showing progress (`3 / 10: asset_xxx.glb — 52.1 MB received…`)
+  - A "Stop" button halts the batch mid-way (`AbortController` used)
+- **Multiple output files supported**
+  - Records with multiple outputs, such as glb + native.blend (158 records), show links to the extra formats (`.blend too`) on the card
 
-### 注意点
+### Notes
 
-- 一括 DL 時、Chrome は初回のみ「複数ファイルのダウンロードを許可しますか?」の確認ダイアログが出ます。「許可」を選択すると以後はスムーズに連続保存されます
-- Firefox の場合、プログラムからの連続ダウンロードがポップアップブロックで妨げられることがあります。その場合は設定でこのサイト(origin)のダウンロード許可を有効にしてください
-- サムネイル / 元データはすべて Hugging Face 公式 CDN から直接取得するため、初回表示にはネットワークが必要です(メタデータ自体はローカル保持)
-- `spz`(Gaussian Splat 形式)など一部フォーマットはブラウザで直接プレビューできないため、確認はサムネイルの表示のみとなります
+- On batch download, Chrome shows the "Allow downloading multiple files?" dialog the first time. Once allowed, subsequent batches run smoothly
+- In Firefox, programmatic consecutive downloads can be blocked by the popup blocker. If so, enable download permission for this site (origin) in the settings
+- **`.blend` files are a format that can embed Python scripts in Blender. Blender's equivalent of `Automatically Run Python Scripts` is disabled by default and safe as-is, but do not enable it carelessly**
+- Thumbnails / source data are all fetched directly from the official Hugging Face CDN, so the first page load requires network access (only the metadata is kept locally)
+- Some formats such as `spz` (Gaussian Splat format) cannot be previewed directly in the browser; for those only the thumbnail display is available
 
 ---
 
-## 仕組み
+## How it works
 
 ```
-データセットの構造 (1,342 rows)
-  ├─ id                     例: scenario:asset_13ERkWLBHdsJ2bNxNp5k6jw7
-  ├─ model                  例: model_meshy-img23d
-  ├─ workflow               例: image-to-3d / image-to-splat
-  ├─ formats                例: glb (または "blend, glb" のような複数値)
-  ├─ prompt                 生成プロンプト(ない場合もある)
-  ├─ inputs / input_files   生成元の入力画像 (PNG/JPG)
-  ├─ outputs                出力ファイル情報 (path / format / sha256 / role)
-  └─ preview_file           サムネイル (preview.jpg) のパス
+Dataset structure (1,342 rows)
+  ├─ id                     e.g. scenario:asset_13ERkWLBHdsJ2bNxNp5k6jw7
+  ├─ model                  e.g. model_meshy-img23d
+  ├─ workflow               e.g. image-to-3d / image-to-splat
+  ├─ formats                e.g. glb (or multiple values such as "blend, glb")
+  ├─ prompt                 the generation prompt (may be absent)
+  ├─ inputs / input_files   input images used for generation (PNG/JPG)
+  ├─ outputs                output file info (path / format / sha256 / role)
+  └─ preview_file           path to the thumbnail (preview.jpg)
 ```
 
-キーポイント
+Key points
 
-- **サムネイル**: `preview_file.path` から署名不要の直接 URL( `https://huggingface.co/datasets/scenario-labs/3d-collection/resolve/main/{path}` )を構築(レスポンスは CORS 許可済み `Access-Control-Allow-Origin: *` の確認済み)
-- **ワンクリック DL**: resolve URL に `?download=true` を付けると `Content-Disposition: attachment` が返るため、ブラウザの既定挙動で即保存される
-- **事前インデックス**: 全メタデータを `data/index.js`(classic script)として静的持ちすることで、実行時の API 障害に影響されず高速に動作する
+- **Thumbnails**: a direct, signature-free URL is built from `preview_file.path` (`https://huggingface.co/datasets/scenario-labs/3d-collection/resolve/main/{path}`) — the response is already CORS-permissive (`Access-Control-Allow-Origin: *`, verified)
+- **One-click download**: adding `?download=true` to the resolve URL returns `Content-Disposition: attachment`, so the browser's default behavior saves the file immediately
+- **Pre-built index**: all metadata is statically stored in `data/index.js` (a classic script), giving fast operation unaffected by runtime API failures
 
-## ライセンス
+## License
 
-データセット自体は **CC-BY-4.0** です(各レコードに `license` 列あり)。利用時はそのライセンス上の条件(出典表示など)を遵守してください。
+- **Code** (`index.html` / `build_index.mjs`, etc.): [MIT License](LICENSE)
+- **`data/index.js`**: a derivative of [scenario-labs/3d-collection](https://huggingface.co/datasets/scenario-labs/3d-collection) (CC-BY-4.0). When using the data or the assets obtained, please comply with the CC-BY-4.0 terms (attribution, etc.)
+- **Three.js**: MIT License (loaded via CDN)
+
+---
+
+## Acknowledgments
+
+This tool depends on the following. Many thanks to both.
+
+- [scenario-labs/3d-collection](https://huggingface.co/datasets/scenario-labs/3d-collection) — the public dataset
+- [Three.js](https://github.com/mrdoob/three.js) — the 3D viewer implementation
