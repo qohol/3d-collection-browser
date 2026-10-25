@@ -7,30 +7,6 @@
 - サーバー・ビルド不要。`index.html` をブラウザで開くだけで動作します
 - データの取得もすべてブラウザ側で完結(外部にデータを送信しません)
 
-## 公開(GitHub Pages)
-
-このサイトは完全に静的なので、GitHub Pages で無料公開できます。
-
-1. GitHub 上でリポジトリを作成(owner/<名前>の Public リポジトリ)
-2. ここをリモートに登録してプッシュ:
-
-   ```bash
-   git remote add origin https://github.com/<あなたのユーザー名>/<リポジトリ名>.git
-   git push -u origin main
-   ```
-
-3. GitHub 上で設定を有効化
-   - **Settings → Pages → Source:「Deploy from a branch」→ Branch:`main` / `/(root)`** → Save
-   - 1〜2 分待つと `https://<ユーザー名>.github.io/<リポジトリ名>/` で公開されます
-
-補足:
-
-- 公開に必要なのは `index.html` と `data/index.js`(と README)だけ。`3d_data/`(ローカルの blend)は `.gitignore` で除外済み
-- アセット(モデル・サムネイル)はすべて各利用者のブラウザから Hugging Face CDN に直接取得されるため、ホスティングには重量データを置かない
-- データセット更新時は手元で `node build_index.mjs` を再実行 → `data/index.js` をコミットして push すれば反映される
-
----
-
 ## ファイル構成
 
 | ファイル | 内容 |
@@ -106,13 +82,15 @@ xdg-open index.html
 - **複数出力ファイルへの対応**
   - glb + native.blend のように複数出力を持つレコード(158 件)は、追加フォーマットのリンク(`.blend も`)をカードに表示
 
-### 注意点
+### 注意点・免責事項
 
-- 一括 DL 時、Chrome は初回のみ「複数ファイルのダウンロードを許可しますか?」の確認ダイアログが出ます。「許可」を選択すると以後はスムーズに連続保存されます
-- Firefox の場合、プログラムからの連続ダウンロードがポップアップブロックで妨げられることがあります。その場合は設定でこのサイト(origin)のダウンロード許可を有効にしてください
-- **`.blend` ファイルには Blender で Python スクリプトを埋め込める形式があります。Blender の `Automatically Run Python Scripts` に相当する設定はデフォルトで無効のためそのままの状態では安全ですが、無闇に有効化しないでください**
-- サムネイル / 元データはすべて Hugging Face 公式 CDN から直接取得するため、初回表示にはネットワークが必要です(メタデータ自体はローカル保持)
-- `spz`(Gaussian Splat 形式)など一部フォーマットはブラウザで直接プレビューできないため、確認はサムネイルの表示のみとなります
+- **生成元サービス・モデルのライセンス順守**: 本データセット内のアセットは各種 3D AI 生成サービス・モデル（Tripo、Meshy、TRELLIS、Rodin 等）により作成されています。取得したアセットの二次利用・商用利用・再配布等を行う際は、**データセット自体のライセンス（CC-BY-4.0）に加えて、必ず各生成元サービス・モデルの利用規約およびライセンス条件（商用利用可否、クレジット表記等）を確認・順守してください**。
+- **データセットのクレジット表記**: アセットやデータを利用・公開する場合は、CC-BY-4.0 の条件に従い、原典（[scenario-labs/3d-collection](https://huggingface.co/datasets/scenario-labs/3d-collection)）の適切な表記・帰属表示を行ってください。
+- **Hugging Face CDN とレート制限**: サムネイルおよび 3D アセットはすべて Hugging Face 公式 CDN から直接取得されます。Hugging Face 側の仕様変更やネットワーク障害、一時的なアクセス集中（429エラー等）によって表示やダウンロードに影響が出る場合があります。
+- **ネットワーク帯域とストレージ容量**: 3D アセット（大容量 GLB や `.blend` ファイル等）のサイズは非常に大きくなる場合があります。一括ダウンロード時はネットワーク帯域やローカルストレージの空き容量に十分ご注意ください。
+- **ブラウザの挙動**: 一括 DL 時、Chrome では初回のみ「複数ファイルのダウンロードを許可しますか?」の確認ダイアログが出ます。Firefox ではポップアップブロックにより連続ダウンロードが妨げられることがあるため、設定からダウンロードの許可を行ってください。
+- **`.blend` ファイルのセキュリティ**: `.blend` ファイルには Blender 上で Python スクリプトを埋め込める仕組みがあります。Blender の `Automatically Run Python Scripts` 設定はデフォルトで無効のため安全ですが、信頼できないファイルを読み込む際に不用意に有効化しないでください。
+- **プレビュー非対応フォーマット**: `spz`(Gaussian Splat 形式)などはブラウザで直接プレビューできないため、サムネイル確認のみとなります。
 
 ---
 
@@ -139,7 +117,7 @@ xdg-open index.html
 ## ライセンス
 
 - **コード** (`index.html` / `build_index.mjs` 等): [MIT License](LICENSE)
-- **`data/index.js`**: [scenario-labs/3d-collection](https://huggingface.co/datasets/scenario-labs/3d-collection) (CC-BY-4.0) 由来の派生物。データおよび取得したアセットを利用する場合は CC-BY-4.0 の条件 (出典表示など) を遵守してください
+- **`data/index.js` およびアセットデータ**: [scenario-labs/3d-collection](https://huggingface.co/datasets/scenario-labs/3d-collection) (CC-BY-4.0) 由来の派生物。データおよび取得したアセットを利用する場合は、CC-BY-4.0 の条件 (出典表示など) に加え、生成元モデル/サービス (Tripo, Meshy 等) の利用条件も確認し遵守してください。
 - **Three.js**: MIT License(CDN 経由で読み込みます)
 
 ---

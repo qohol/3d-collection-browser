@@ -1,6 +1,10 @@
 # サイト動作に不要なローカルデータ (blend 12MB) は公開対象から除外
 3d_data/
 
+# OpenCodeの設定ファイル
+AGENTS.md
+opencode.json
+
 # OS / エディタ由来のゴミ
 -l
 .DS_Store

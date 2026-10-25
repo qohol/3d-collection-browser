@@ -7,28 +7,6 @@ A local web viewer for the [Hugging Face dataset **scenario-labs/3d-collection**
 - No server or build step required — just open `index.html` in a browser and it works
 - All data fetching happens entirely in the browser (no data is sent externally)
 
-## Publishing (GitHub Pages)
-
-Since the site is fully static, you can publish it for free with GitHub Pages.
-
-1. Create a repository on GitHub (a public repository under `owner/<name>`)
-2. Register it as a remote and push:
-
-   ```bash
-   git remote add origin https://github.com/<your-username>/<repo-name>.git
-   git push -u origin main
-   ```
-
-3. Enable Pages in the GitHub settings:
-   - **Settings → Pages → Source: "Deploy from a branch" → Branch: `main` / `/(root)`** → Save
-   - After 1–2 minutes the site will be live at `https://<username>.github.io/<repo-name>/`
-
-Notes:
-
-- Only `index.html` and `data/index.js` (plus the README) are needed for publishing. `3d_data/` (local blend files) is already excluded by `.gitignore`
-- Assets (models / thumbnails) are fetched directly from the Hugging Face CDN by each user's browser, so no heavy data is hosted
-- When the dataset updates, run `node build_index.mjs` locally again → commit the updated `data/index.js` and push to reflect the changes
-
 ---
 
 ## File structure
@@ -106,13 +84,15 @@ xdg-open index.html
 - **Multiple output files supported**
   - Records with multiple outputs, such as glb + native.blend (158 records), show links to the extra formats (`.blend too`) on the card
 
-### Notes
+### Important Notes & Disclaimer
 
-- On batch download, Chrome shows the "Allow downloading multiple files?" dialog the first time. Once allowed, subsequent batches run smoothly
-- In Firefox, programmatic consecutive downloads can be blocked by the popup blocker. If so, enable download permission for this site (origin) in the settings
-- **`.blend` files are a format that can embed Python scripts in Blender. Blender's equivalent of `Automatically Run Python Scripts` is disabled by default and safe as-is, but do not enable it carelessly**
-- Thumbnails / source data are all fetched directly from the official Hugging Face CDN, so the first page load requires network access (only the metadata is kept locally)
-- Some formats such as `spz` (Gaussian Splat format) cannot be previewed directly in the browser; for those only the thumbnail display is available
+- **Generated Models Terms & Licensing**: The assets in this dataset are created by various 3D AI generator services and models (Tripo, Meshy, TRELLIS, Rodin, etc.). When reusing, commercializing, or redistributing these assets, **you must verify and comply with both the dataset's CC-BY-4.0 license and the specific provider/model's terms of service** (such as commercial use permissions, plan tier restrictions, and attribution requirements).
+- **Dataset CC-BY-4.0 Attribution**: Reusing or distributing data or downloaded assets requires proper attribution acknowledging [scenario-labs/3d-collection](https://huggingface.co/datasets/scenario-labs/3d-collection) according to the CC-BY-4.0 license terms.
+- **Hugging Face CDN & Rate Limits**: Thumbnails and 3D assets are retrieved on-demand directly from Hugging Face's CDN. Changes in Hugging Face's API/CDN structure, temporary outages, or rate limiting (e.g. HTTP 429) may occasionally affect preview loading or downloading.
+- **Network Bandwidth & Local Storage**: 3D assets (especially `.blend` or high-resolution models) can be large. Downloading multiple assets at once may consume significant network bandwidth and local disk space.
+- **Browser Behavior**: On batch download, Chrome shows the "Allow downloading multiple files?" dialog the first time. In Firefox, consecutive downloads may be blocked by popup blockers unless permitted in settings.
+- **Blender Security**: `.blend` files can embed Python scripts in Blender. Blender's `Automatically Run Python Scripts` option is disabled by default and safe, but do not enable it carelessly without inspecting untrusted files.
+- **Unsupported Previews**: Formats like `spz` (Gaussian Splatting) cannot be rendered directly in the browser; only the thumbnail preview is displayed.
 
 ---
 
@@ -139,7 +119,7 @@ Key points
 ## License
 
 - **Code** (`index.html` / `build_index.mjs`, etc.): [MIT License](LICENSE)
-- **`data/index.js`**: a derivative of [scenario-labs/3d-collection](https://huggingface.co/datasets/scenario-labs/3d-collection) (CC-BY-4.0). When using the data or the assets obtained, please comply with the CC-BY-4.0 terms (attribution, etc.)
+- **`data/index.js` & Dataset Assets**: Derived from [scenario-labs/3d-collection](https://huggingface.co/datasets/scenario-labs/3d-collection) (CC-BY-4.0). When using the data or downloaded assets, please ensure compliance with CC-BY-4.0 requirements (attribution, etc.) as well as the terms and licenses of the specific generation models/providers (Tripo, Meshy, etc.).
 - **Three.js**: MIT License (loaded via CDN)
 
 ---
