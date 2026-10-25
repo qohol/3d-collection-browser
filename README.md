@@ -32,6 +32,8 @@ node build_index.mjs
 
 ### 2. Open in a browser
 
+[https://qoohl7.github.io/3d-collection-browser/](https://qoohl7.github.io/3d-collection-browser/)  
+
 ```bash
 # Pattern A: start a local static server (run inside the site folder)
 python3 -m http.server 8765

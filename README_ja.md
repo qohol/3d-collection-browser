@@ -30,6 +30,8 @@ node build_index.mjs
 
 ### 2. ブラウザで開く
 
+[https://qoohl7.github.io/3d-collection-browser/](https://qoohl7.github.io/3d-collection-browser/)  
+
 ```bash
 # パターン A: ローカル静的サーバーで起動 (サイトのフォルダ内で実行)
 python3 -m http.server 8765
