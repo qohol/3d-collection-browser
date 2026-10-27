@@ -1,5 +1,6 @@
 # サイト動作に不要なローカルデータ (blend 12MB) は公開対象から除外
 3d_data/
+_old/
 
 # OpenCodeの設定ファイル
 AGENTS.md
