@@ -211,6 +211,16 @@
   }
   .vhead .vmeta { color: var(--text-dim); font-size: 12px; margin-top: 3px; word-break: break-all; }
   .vhead .vclose { pointer-events: auto; }
+  /* 表示モード切替ボタン群 (vhead は pointer-events:none なのでここで有効化) */
+  .vmodes {
+    pointer-events: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: flex-start;
+  }
+  .vmode { padding: 5px 10px; font-size: 12px; }
+  .vmode.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
   .vhint {
     position: absolute;
     bottom: 14px;
@@ -325,6 +335,7 @@
     <select id="fModel"><option value="">モデル: すべて</option></select>
     <select id="fWorkflow"><option value="">workflow: すべて</option></select>
     <select id="fFormat"><option value="">フォーマット: すべて</option></select>
+    <button class="btn" id="btnShuffle" title="クリックのたびに表示順をランダムに入れ替えます (先頭の見飽きた項目を避け、見たことのないモデルに当たりやすくなります)。リロードすると元の順序に戻ります">🔀 シャッフル</button>
     <button class="btn" id="btnClear">フィルタ解除</button>
     <button class="btn" id="btnSelectShown">表示中を全選択</button>
     <button class="btn" id="btnDeselect">選択解除</button>
@@ -349,6 +360,12 @@
     <div class="vtitle">
       <div class="vname" id="vName"></div>
       <div class="vmeta" id="vMeta"></div>
+    </div>
+    <div class="vmodes" id="vModes" role="group" aria-label="表示モード">
+      <button class="btn vmode is-active" data-mode="color" title="元のテクスチャ・マテリアルで表示">カラー</button>
+      <button class="btn vmode" data-mode="wire" title="ワイヤーフレーム表示">ワイヤー</button>
+      <button class="btn vmode" data-mode="gray" title="質感なしの灰色モデル (グレーエイ / クレイ表示)">グレー</button>
+      <button class="btn vmode" data-mode="normal" title="法線を RGB で色分け表示">法線</button>
     </div>
     <button class="btn vclose" id="vClose">✕ 閉じる (Esc)</button>
   </div>
@@ -470,11 +487,35 @@ function applyFilter() {
     !q ||
     (d.id || "").toLowerCase().includes(q) ||
     (d.prompt || "").toLowerCase().includes(q);
-  state.filtered = DATA.filter((d) => (!m || d.model === m) && (!w || d.workflow === w) && formatOk(d) && searchOk(d));
+  /* シャッフル中はデータ全体のシャッフル済みコピーを並べ替えの基準にする。
+     元の順序 (state.shuffledList) を保持するため、フィルタ変更しても
+     表示順が再ランダム化されず安定する */
+  const base = state.shuffledList || DATA;
+  state.filtered = base.filter((d) => (!m || d.model === m) && (!w || d.workflow === w) && formatOk(d) && searchOk(d));
   state.rendered = 0;
   grid.innerHTML = "";
   renderChunk();
 }
+
+/* ------------------------------------------------------------------ */
+/* ランダム並べ替え (Fisher–Yates)                                          */
+/* ------------------------------------------------------------------ */
+function shuffleCopy(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+$("btnShuffle").addEventListener("click", () => {
+  /* クリックのたびに全体をランダム化したコピーを新たに作り再描画する。
+     シャッフル状態はメモリ上のみ (保存しない) のため、ブラウザの更新で
+     常に元の順序 (デフォルト) に戻る。フィルタ変更中も並びは安定維持 */
+  state.shuffledList = shuffleCopy(DATA);
+  applyFilter();
+});
 
 /* ------------------------------------------------------------------ */
 /* グリッド描画 (チャンクレンダリング + 遅延読み込み)                              */
@@ -845,6 +886,12 @@ const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(draco);
 const plyLoader = new PLYLoader();
 
+/* --- 表示モード用の共有マテリアル (全メッシュで使い回すため 1 回だけ生成) --- */
+const grayMat = new THREE.MeshStandardMaterial({ color: 0xb3bac6, roughness: 0.75, metalness: 0.05 });
+const normalMat = new THREE.MeshNormalMaterial();
+const wireMat = new THREE.MeshBasicMaterial({ color: 0x8fb0ff, wireframe: true });
+let displayMode = "color";   // 現在の表示モード (color / wire / gray / normal)
+
 function ensureScene() {
   if (renderer) return;
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
@@ -927,16 +974,51 @@ function disposeModel() {
   homeCamera = null;
   scene.remove(modelRoot);
   modelRoot.traverse((o) => {
-    if (o.geometry) o.geometry.dispose();
-    if (o.material) {
-      for (const v of Object.values(o.material)) {
+    /* 表示モード切替で差し替え中の共有マテリアル (grayMat 等) ではなく、
+       元のマテリアルを破棄する (共有マテリアルは次回以降も再利用する) */
+    const mat = o.userData.origMat || o.material;
+    if (mat) {
+      for (const v of Object.values(mat)) {
         if (v && v.isTexture) v.dispose();
       }
-      o.material.dispose();
+      mat.dispose();
     }
+    o.userData.origMat = undefined;
   });
   modelRoot = null;
 }
+
+/* --- 表示モード適用: 各メッシュのマテリアルをモードに応じて差し替える --- */
+function applyDisplayMode() {
+  if (!modelRoot) return;
+  modelRoot.traverse((o) => {
+    if (!o.isMesh) return;             // ポイントクラウド (Points) は対象外 (元マテリアルのまま)
+    /* 法線を持たないジオメトリはシェーダに (0,0,0) が渡って
+       グレー / 法線表示が真っ黒になるため、ここで法線を計算して補完する */
+    if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+    if (o.userData.origMat === undefined) o.userData.origMat = o.material;
+    if (displayMode === "color") {
+      o.material = o.userData.origMat; // カラー → 元のマテリアルに戻す
+    } else if (o.userData.origMat) {
+      /* 切替時に元マテリアルを userData へ退避済み。共有マテリアルを割り当てる */
+      o.material =
+        displayMode === "wire" ? wireMat :
+        displayMode === "gray" ? grayMat :
+        normalMat;
+    }
+  });
+  renderOnce();
+}
+
+/* 表示モード切替ボタン */
+const vModesEl = el("vModes");
+vModesEl.addEventListener("click", (ev) => {
+  const b = ev.target.closest(".vmode");
+  if (!b) return;
+  displayMode = b.dataset.mode;
+  vModesEl.querySelectorAll(".vmode").forEach((x) => x.classList.toggle("is-active", x === b));
+  applyDisplayMode();
+});
 
 /* --- プログレス / エラー表示 --- */
 function setLoading(on, msg) {
@@ -1009,7 +1091,7 @@ async function loadModel(d) {
     modelRoot = root;
     fitCameraTo(root);
     setLoading(false);
-    renderOnce();
+    applyDisplayMode();   // 現在選択中の表示モード (カラー以外) を新モデルにも適用
   } catch (err) {
     if (loadId !== currentLoadId) return; // 既に別のモデルを開いている
     setLoading(false);
